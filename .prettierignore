@@ -1,0 +1,18 @@
+# Ignore formatting for build and dependency folders
+node_modules/
+.next/
+dist/
+coverage/
+public/
+
+# Ignore environment files
+.env*
+
+# Ignore system files
+.DS_Store
+*.log
+
+# Ignore output and Prettier ignore
+out/
+.prettierignore
+
