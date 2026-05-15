@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import type { Member } from '@server/services/member.service';
 import type { MemberData } from '@/lib/validations';
+import { fetchJSON } from '@/lib/api';
 
 const ITEMS_PER_PAGE = 6;
 
@@ -21,9 +22,7 @@ export function useMembers() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/members');
-      if (!res.ok) throw new Error();
-      const data: Member[] = await res.json();
+      const data = await fetchJSON<Member[]>('/api/members');
       setMembers(data);
     } catch {
       setError('Không thể tải danh sách thành viên');
@@ -67,13 +66,11 @@ export function useMembers() {
 
   const addMember = useCallback(async (data: MemberData) => {
     try {
-      const res = await fetch('/api/members', {
+      const newMember = await fetchJSON<Member>('/api/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error();
-      const newMember: Member = await res.json();
       setMembers((prev) => [...prev, newMember]);
       setIsAddMemberOpen(false);
       toast.success('Đã thêm thành viên mới');

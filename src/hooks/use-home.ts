@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { type Match } from '@/components/match-history';
 import type { MatchData } from '@/lib/validations';
+import { fetchJSON } from '@/lib/api';
 
 interface TopWinner {
   id: string;
@@ -29,15 +30,17 @@ export function useHome() {
   const [isAddMatchOpen, setIsAddMatchOpen] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/members/count').then((r) => r.json()),
-      fetch('/api/matches/monthly-count').then((r) => r.json()),
-      fetch('/api/matches/today-count').then((r) => r.json()),
-      fetch('/api/members/top3').then((r) => r.json()),
-      fetch('/api/matches/today').then((r) => r.json()),
-      fetch('/api/members').then((r) => r.json()),
-    ])
-      .then(([memberCount, monthlyCount, todayCount, top3, todayMatchData, memberList]) => {
+    (async () => {
+      try {
+        const [memberCount, monthlyCount, todayCount, top3, todayMatchData, memberList] =
+          await Promise.all([
+            fetchJSON<{ count: number }>('/api/members/count'),
+            fetchJSON<{ count: number }>('/api/matches/monthly-count'),
+            fetchJSON<{ count: number }>('/api/matches/today-count'),
+            fetchJSON<TopWinner[]>('/api/members/top3'),
+            fetchJSON<Match[]>('/api/matches/today'),
+            fetchJSON<{ id: string; name: string }[]>('/api/members'),
+          ]);
         setStats({
           memberCount: memberCount.count ?? 0,
           monthlyMatchCount: monthlyCount.count ?? 0,
@@ -46,22 +49,24 @@ export function useHome() {
         setTopWinners(Array.isArray(top3) ? top3 : []);
         setTodayMatches(Array.isArray(todayMatchData) ? todayMatchData : []);
         setMembers(Array.isArray(memberList) ? memberList : []);
-      })
-      .catch(() => toast.error('Không thể tải dữ liệu'))
-      .finally(() => setLoading(false));
+      } catch {
+        toast.error('Không thể tải dữ liệu');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const addMatch = useCallback(async (data: MatchData) => {
-    const res = await fetch('/api/matches', {
+    const newMatch = await fetchJSON<Match>('/api/matches', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
-    });
-    if (!res.ok) {
+    }).catch(() => {
       toast.error('Thêm trận đấu thất bại');
-      return;
-    }
-    const newMatch: Match = await res.json();
+      return null;
+    });
+    if (!newMatch) return;
     setTodayMatches((prev) => [newMatch, ...prev]);
     setStats((prev) => ({
       ...prev,

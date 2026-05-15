@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { type Match } from '@/components/match-history';
 import type { MatchData } from '@/lib/validations';
+import { fetchJSON } from '@/lib/api';
 
 const LIMIT = 8;
 
@@ -36,11 +37,9 @@ export function useHistory() {
       query.set('page', String(params.page ?? 1));
       query.set('limit', String(LIMIT));
 
-      const res = await fetch(`/api/matches?${query.toString()}`);
-      if (!res.ok) throw new Error();
-      const json: { data: Match[]; total: number; page: number; totalPages: number } =
-        await res.json();
-
+      const json = await fetchJSON<{ data: Match[]; total: number; page: number; totalPages: number }>(
+        `/api/matches?${query.toString()}`,
+      );
       setMatches(json.data);
       setTotal(json.total);
       setTotalPages(json.totalPages);
@@ -53,7 +52,7 @@ export function useHistory() {
   }, []);
 
   useEffect(() => {
-    Promise.all([fetchMatches(), fetch('/api/members').then((r) => r.json())])
+    Promise.all([fetchMatches(), fetchJSON<{ id: string; name: string }[]>('/api/members')])
       .then(([, memberData]) => setMembers(Array.isArray(memberData) ? memberData : []))
       .catch(() => toast.error('Không thể tải dữ liệu'));
   }, [fetchMatches]);
@@ -86,15 +85,18 @@ export function useHistory() {
   const hasActiveFilters = !!(searchMember || searchMonth || (searchMember && filterResult !== 'all'));
 
   const addMatch = useCallback(async (data: MatchData) => {
-    const res = await fetch('/api/matches', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) { toast.error('Thêm trận đấu thất bại'); return; }
-    setIsAddMatchOpen(false);
-    toast.success('Thêm kết quả thành công');
-    fetchMatches({ member: searchMember, month: searchMonth, result: filterResult, page: 1 });
+    try {
+      await fetchJSON('/api/matches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      setIsAddMatchOpen(false);
+      toast.success('Thêm kết quả thành công');
+      fetchMatches({ member: searchMember, month: searchMonth, result: filterResult, page: 1 });
+    } catch {
+      toast.error('Thêm trận đấu thất bại');
+    }
   }, [fetchMatches, searchMember, searchMonth, filterResult]);
 
   const deleteMatch = useCallback(async (id: string) => {
